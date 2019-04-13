@@ -1,0 +1,80 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Test
+
+tags:
+  - name: Shadow
+    description: "Shadow operations"
+  - name: Registry
+    description: "Thing Registry"
+
+paths:
+  /registry/{registry}/things/{thingName}/shadow:
+    x-vertx-event-bus:
+      address: edge.iot.shadow-service-api
+      timeout: 1000
+    get:
+      operationId: getShadow
+      tags:
+        - Shadow
+      parameters:
+        - name: registry
+          in: path
+          schema:
+            type: string
+          required: true
+          description: "The name of the registry"
+        - name: thingName
+          in: path
+          schema:
+            type: string
+          required: true
+          description: "The name of the objet"
+      responses:
+        200:
+          description: "Get Shadow"
+  /registry/{registry}/things:
+    x-vertx-event-bus:
+      address: edge.iot.registry-service-api
+      timeout: 1000
+    get:
+      operationId: getAll
+      tags:
+        - Registry
+      parameters:
+        - name: registry
+          in: path
+          schema:
+            type: string
+          required: true
+          description: "The name of the registry"
+      responses:
+        200:
+          description: "Get Registry things"
+  /registry/{registry}/things/{thingName}/metadata:
+    x-vertx-event-bus:
+      address: edge.iot.registry-service-api
+      timeout: 1000
+    get:
+      operationId: findMetadata
+      tags:
+        - Registry
+      parameters:
+        - name: registry
+          in: path
+          schema:
+            type: string
+          required: true
+          description: "The name of the registry"
+        - name: thingName
+          in: path
+          schema:
+            type: string
+          required: true
+          description: "The name of the objet"
+      responses:
+        200:
+          description: "Get Registry things"
+        204:
+          description: "Metadata doesn't exist"

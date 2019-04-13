@@ -1,0 +1,11 @@
+{
+	"shadow.enable": true,
+	"mongodb.host": "127.0.0.1",
+	"mongodb.port": 27017,
+	"mongodb.dbname": "edge-iot",
+	"measures.enable": true,
+	"influxdb.host": "127.0.0.1",
+	"influxdb.port": 8086,
+	"influxdb.dbname": "edge_iot",
+	"mqtt.enable": true
+}
