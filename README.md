@@ -2,12 +2,12 @@ Edge IoT
 ------
 
 Provide services for IoT to:
-- Communicate with gateway / remote objects
-- Create replication data between cloud and objects
-- Save data as metrics values
-- Send new configuration to objects
-- Create different namespaces for multi-tenancy
-- [Horizontal Scaling(]Support horizontal scaling)
+- [Communication](Communicate with gateway / remote objects)
+- [Topics](Create replication data between cloud and objects)
+- [Database](Save data as metrics values)
+- [Interaction](Send new configuration to objects)
+- [Authentication](Create different namespaces for multi-tenancy)
+- [Horizontal Scaling](Support horizontal scaling)
 
 # Communication
 
