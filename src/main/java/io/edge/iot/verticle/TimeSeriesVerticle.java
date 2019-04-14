@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import io.edge.iot.dao.MeasureDao;
 import io.edge.iot.service.remote.ShadowService;
 import io.edge.utils.exchange.Exchange;
 import io.edge.utils.timeseries.BatchPoints;
@@ -19,7 +18,6 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -31,8 +29,6 @@ import io.vertx.core.json.JsonObject;
 public class TimeSeriesVerticle extends AbstractVerticle {
 
 	public static final String EDGE_IOT_TIMESERIES = "$edge.iot.timeseries";
-
-	private MeasureDao measuresDao;
 
 	/**
 	 * Transforme un objets de valeurs à l'aide de ses méta-données en un
@@ -79,59 +75,6 @@ public class TimeSeriesVerticle extends AbstractVerticle {
 		return TimeSeriesVerticle.createMeasures(registry, thingName, shadow.getJsonObject("state").getJsonObject("reported"), shadow.getJsonObject("metadata"), shadow.getLong("timestamp"));
 	}
 
-	private void onReceiveMeasures(Message<JsonObject> message) {
-
-		final String registry = message.headers().get("registry");
-
-		final String thingName = message.headers().get("thingName");
-		
-		final JsonObject shadow = message.body();
-
-		final List<JsonObject> measures = TimeSeriesVerticle.createMeasures(registry, thingName, shadow.getJsonObject("state").getJsonObject("reported"), shadow.getJsonObject("metadata"), shadow.getLong("timestamp"));
-		
-		// final JsonArray measures = message.body();
-
-		/**
-		 * Sépare les mesures pouvant être sauvegarder dans une base de données
-		 * Time Series et les autres
-		 */
-
-		JsonArray tsMeasures = new JsonArray();
-
-		JsonArray otherMeasures = new JsonArray();
-
-		for (JsonObject measure : measures) {
-
-			Object o = measure.getValue("value");
-
-			if (o instanceof Integer || o instanceof Short || o instanceof Float || o instanceof Long || o instanceof Double) {
-				tsMeasures.add(measure);
-			} else if (o instanceof Boolean) {
-				tsMeasures.add(measure);
-			} else {
-				otherMeasures.add(measure);
-			}
-		}
-
-		/**
-		 * Enregistre les données compatibles dans une base de données Time
-		 * Series
-		 */
-
-		@SuppressWarnings("unchecked")
-		List<JsonObject> measureList = tsMeasures.getList();
-
-		this.measuresDao.addMeasures(registry, thingName, measureList, saveResult -> {
-
-		});
-		
-		/**
-		 * Enregistre dans MongoDB les autres types de données
-		 */
-		// rms.saveEvents(registry, thingName, otherMeasures);
-
-	}
-
 	@Override
 	public void start() {
 
@@ -149,14 +92,7 @@ public class TimeSeriesVerticle extends AbstractVerticle {
 		
 		int batchSize = config().getInteger("influxdb.batchSize", 5000);
 		
-		// this.measuresDao = new InfluxDBMeasureDao(vertx, influxDB, databaseName);
-
-		// vertx.eventBus().consumer(EDGE_IOT_TIMESERIES, this::onReceiveMeasures);
-		
-		// Exchange.exchangeFanout(vertx, ShadowService.EDGE_IOT_SHADOW_UPDATE_RESULT).start().consumer(EDGE_IOT_TIMESERIES, this::onReceiveMeasures);
-		
 		CircuitBreaker saveBatchCB = CircuitBreaker.create("edge.iot.measures-dao.saveBatch", vertx);
-		
 		
 		Flowable.<JsonObject>create(emitter -> {
 			
