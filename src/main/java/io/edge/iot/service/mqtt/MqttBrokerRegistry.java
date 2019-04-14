@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import io.edge.iot.service.identity.impl.DefaultIdentityServiceImpl;
 import io.edge.iot.service.identity.IdentityService;
+import io.edge.iot.service.identity.impl.DefaultIdentityServiceImpl;
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode;
 import io.reactivex.Emitter;
 import io.reactivex.Observable;
@@ -20,7 +20,7 @@ import io.vertx.mqtt.MqttEndpoint;
 public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
 
 	private final Map<String, MqttBroker> brokerRegistry = new HashMap<>();
-	
+
 	private final Set<Emitter<MqttBroker>> brokerEmitterSet = new HashSet<>();
 
 	private final Vertx vertx;
@@ -43,18 +43,18 @@ public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
 
 		MqttBroker broker = MqttBroker.create(vertx, options);
 		brokerRegistry.put(registry, broker);
-		
-		brokerEmitterSet.forEach(emitter -> emitter.onNext(broker) );
-		
+
+		brokerEmitterSet.forEach(emitter -> emitter.onNext(broker));
+
 		return broker;
 	}
-	
+
 	public static MqttBrokerRegistry create(Vertx vertx) {
 		return new MqttBrokerRegistry(vertx);
 	}
 
 	public void close() {
-		brokerEmitterSet.forEach( Emitter::onComplete );
+		brokerEmitterSet.forEach(Emitter::onComplete);
 		brokerEmitterSet.clear();
 		brokerRegistry.values().forEach(MqttBroker::close);
 		brokerRegistry.clear();
@@ -69,11 +69,11 @@ public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
 			this.brokerRegistry.get(registry).publish(topic, data);
 		}
 	}
-	
+
 	public Disposable subscribeMessage(Handler<MqttMessage> messageHandler) {
-		
-		return Observable.<MqttBroker>create(emitter -> {
-			
+
+		return Observable.<MqttBroker> create(emitter -> {
+
 			this.brokerEmitterSet.add(emitter);
 			emitter.setCancellable(() -> {
 				this.brokerEmitterSet.remove(emitter);
@@ -88,7 +88,7 @@ public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
 	@Override
 	public void handle(MqttEndpoint endpoint) {
 
-		identityService.findIdentity(endpoint.clientIdentifier(), identityResult -> {
+		this.identityService.findIdentity(endpoint.clientIdentifier(), endpoint.auth(), identityResult -> {
 
 			if (identityResult.succeeded()) {
 
