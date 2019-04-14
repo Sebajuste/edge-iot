@@ -55,16 +55,7 @@ public class ShadowServiceImpl implements ShadowService {
 
 		return null;
 	};
-
-	private final Vertx vertx;
-
-	private final ShadowDao shadowDao;
-
-	public ShadowServiceImpl(Vertx vertx, ShadowDao shadowDao) {
-		this.vertx = vertx;
-		this.shadowDao = shadowDao;
-	}
-
+	
 	private static final Function<CompositeFuture, Boolean> COMPOSITE_UPDATE = r -> {
 
 		if (r.succeeded()) {
@@ -89,7 +80,16 @@ public class ShadowServiceImpl implements ShadowService {
 		}
 
 	};
-	
+
+	private final Vertx vertx;
+
+	private final ShadowDao shadowDao;
+
+	public ShadowServiceImpl(Vertx vertx, ShadowDao shadowDao) {
+		this.vertx = vertx;
+		this.shadowDao = shadowDao;
+	}
+
 	@Override
 	public void getShadow(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
 		
