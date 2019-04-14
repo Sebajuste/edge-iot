@@ -13,6 +13,7 @@ import io.edge.iot.service.remote.impl.RegistryServiceImpl;
 import io.edge.iot.service.remote.impl.ShadowServiceAPIImpl;
 import io.edge.iot.service.remote.impl.ShadowServiceImpl;
 import io.edge.utils.exchange.Exchange;
+import io.edge.utils.webapiservice.WebApiService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.Message;
@@ -20,8 +21,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.mongo.MongoClient;
-import io.vertx.servicediscovery.Record;
-import io.vertx.servicediscovery.ServiceDiscovery;
 import io.vertx.serviceproxy.ServiceBinder;
 
 /**
@@ -45,20 +44,18 @@ public class ShadowVerticle extends AbstractVerticle {
 
 	private ShadowService shadowService = null;
 
-	private Record iotWebApiRecord = null;
-
 	private void onMqttPublishReceived(Message<Buffer> message) {
 
 		String registry = message.headers().get("registry");
 
 		String thingName = message.headers().get("thingName");
-		
+
 		Buffer payload = message.body();
 
 		JsonObject shadow = new JsonObject(payload.toString());
-		
+
 		this.shadowService.updateShadow(registry, thingName, shadow, ar -> {
-			if( ar.succeeded()) {
+			if (ar.succeeded()) {
 				message.reply(null);
 			} else {
 				message.fail(-1, ar.cause().getMessage());
@@ -103,17 +100,14 @@ public class ShadowVerticle extends AbstractVerticle {
 
 		ServiceBinder serviceBinder = new ServiceBinder(vertx);
 
-		ServiceDiscovery discovery = ServiceDiscovery.create(vertx);
-
 		//
 		// Bus Service
 		//
 
 		serviceBinder.setAddress(ShadowService.ADDRESS).register(ShadowService.class, this.shadowService);
-		
+
 		RegistryService registryService = new RegistryServiceImpl(thingRegistryDao);
 		serviceBinder.setAddress(RegistryService.ADDRESS).register(RegistryService.class, registryService);
-		
 
 		//
 		// API service
@@ -121,60 +115,21 @@ public class ShadowVerticle extends AbstractVerticle {
 
 		ShadowServiceAPI shadowServiceAPI = new ShadowServiceAPIImpl(shadowDao);
 		serviceBinder.setAddress(ShadowServiceAPI.ADDRESS).register(ShadowServiceAPI.class, shadowServiceAPI);
-		
+
 		RegistryServiceAPI registryServiceAPI = new RegistryServiceAPIImpl(thingRegistryDao);
 		serviceBinder.setAddress(RegistryServiceAPI.ADDRESS).register(RegistryServiceAPI.class, registryServiceAPI);
-		
 
-		// Registry Service
+		//
+		// Publish Web API
+		//
 
-		vertx.eventBus().consumer("edge.iot.webapi-service.yaml", message -> {
+		JsonObject config = new JsonObject()//
+				.put("name", "Games-Matchmaking")//
+				.put("endpoint", "io.edge.iot.webapi-service.yaml")//
+				.put("file", "src/main/resources/iot-api.yaml")//
+				.put("subpath", "/iot");
 
-			String action = message.headers().get("action");
-
-			if ("getOpenAPI".equals(action)) {
-
-				vertx.fileSystem().readFile("src/main/resources/config.yaml", readResult -> {
-
-					if (readResult.succeeded()) {
-
-						message.reply(readResult.result());
-
-					} else {
-						message.fail(0, readResult.cause().getMessage());
-					}
-
-				});
-
-			} else {
-				message.fail(0, "Invalid action");
-			}
-
-		});
-
-		iotWebApiRecord = new Record()//
-				// .setName("edge-iot")//
-				.setType("eventbus-webapi-service-proxy")//
-				.setLocation(new JsonObject().put("endpoint", "edge.iot.webapi-service.yaml"))//
-				.setMetadata(new JsonObject().put("supath", "/iot"))//
-				.setName("EdgeIoT");
-
-		discovery.publish(iotWebApiRecord, recordResult -> {
-
-		});
-
-	}
-
-	@Override
-	public void stop() {
-
-		ServiceDiscovery discovery = ServiceDiscovery.create(vertx);
-
-		if (iotWebApiRecord != null) {
-			discovery.unpublish(iotWebApiRecord.getRegistration(), ar -> {
-
-			});
-		}
+		WebApiService.create(vertx).bind(config);
 
 	}
 
