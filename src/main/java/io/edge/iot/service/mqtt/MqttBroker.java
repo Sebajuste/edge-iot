@@ -37,12 +37,13 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 	private final Vertx vertx;
 
-	// private final JsonObject options;
-
 	private final String registry;
 
 	private final String brokerBusAddress;
 
+	/**
+	 * Topic map, contains a submap with clientIdentifier as key
+	 */
 	private final Map<String, Map<String, Emitter<MqttMessage>>> emitterSetMap = new HashMap<>();
 
 	private final Set<Emitter<MqttMessage>> publishEmitterSet = new HashSet<>();
@@ -69,22 +70,6 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 			this.publish(topic, bufferMessage.body().getBytes());
 		});
-
-		/*
-		 * this.publishObservable().subscribe(publishInfo -> {
-		 * 
-		 * LOGGER.info("publishInfo : " + publishInfo);
-		 * 
-		 * DeliveryOptions options = new DeliveryOptions();
-		 * options.addHeader("registry", this.options.getString("registry"));
-		 * options.addHeader("topic", publishInfo.getString("topic"));
-		 * 
-		 * // this.vertx.eventBus().publish(this.brokerBusAddress, //
-		 * publishInfo.getBinary("data"), options);
-		 * 
-		 * // this.vertx.eventBus().send(MqttBroker.EDGE_IOT_MQTT, //
-		 * publishInfo.getBinary("data"), options); });
-		 */
 
 		return this;
 	}
@@ -153,7 +138,6 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 				} else {
 					resultHandler.handle(Future.failedFuture("Bad username or password"));
-					// endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
 				}
 
 			});
@@ -193,8 +177,6 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 				if (!subscribeMap.containsKey(s.topicName())) {
 					Disposable disposable = this.subscribe(endpoint.clientIdentifier(), s.topicName())//
 							.subscribe(message -> {
-								// Buffer buffer =
-								// Buffer.buffer(message.getBinary("data"));
 								LOGGER.info("Send data to endpoint [topic: " + message.getTopic() + "]");
 								endpoint.publish(message.getTopic(), message.getPayload(), MqttQoS.AT_MOST_ONCE, false, false);
 							});
@@ -244,20 +226,7 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 				this.vertx.eventBus().publish(this.brokerBusAddress, message.payload(), options);
 
-				// this.vertx.eventBus().publish(MqttBroker.EDGE_IOT_MQTT,
-				// message.payload(), options);
-
-				// Exchange.exchangeFanout(vertx,
-				// EDGE_IOT_MQTT).publish(message.payload(), options);
-
 				MqttMessage mqttMessage = new MqttMessage(this.registry, message.topicName(), message.payload());
-
-				// JsonObject eventHeaders = new JsonObject().put("registry",
-				// this.options.getString("registry")).put("topic",
-				// message.topicName());
-
-				// JsonObject eventMessage = new JsonObject().put("headers",
-				// eventHeaders).put("payload", message.payload().getBytes() );
 
 				this.publishEmitterSet.forEach(emitter -> emitter.onNext(mqttMessage));
 
@@ -320,7 +289,7 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 	}
 
 	/**
-	 * Publish a payload on a topic. All Observables elligable will receive the
+	 * Publish a payload on a topic. All Observables eligible will receive the
 	 * packet.
 	 * 
 	 * @param topic
@@ -330,23 +299,26 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 		LOGGER.info("Publish to topic [" + topic + "]");
 
-		// JsonObject message = new JsonObject().put("topic", topic).put("data",
-		// data);
-
 		MqttMessage message = new MqttMessage(this.registry, topic, Buffer.buffer(data));
 
-		Observable.fromIterable(this.emitterSetMap.entrySet())//
+		Observable.fromIterable(this.emitterSetMap.entrySet())// Take all subscriber on this local node
+		
 				.filter(entry -> {
 					MqttTopicFinder.Result matchResult = MqttTopicFinder.matchUri(topic, entry.getKey());
-
 					return MqttTopicFinder.Result.MATCH.equals(matchResult) || MqttTopicFinder.Result.INTERMEDIATE.equals(matchResult);
-				})//
-				.flatMap(entry -> Observable.fromIterable(entry.getValue().entrySet())) //
-				.groupBy(Map.Entry::getKey)//
-				.flatMapSingle(GroupedObservable::toList)//
-				.filter(list -> !list.isEmpty())//
-				.map(list -> list.get(0)).map(Map.Entry::getValue)//
-				.subscribe(emitter -> emitter.onNext(message));
+				})// Keep only eligible topics
+				
+				.flatMap(entry -> Observable.fromIterable(entry.getValue().entrySet())) // Flat all emitters for the eligible topics
+				
+				.groupBy(Map.Entry::getKey)// Regroup for each Client (to avoid send same data for the same client)
+				
+				.flatMapSingle(GroupedObservable::toList)// Make a list for each Client 
+				
+				.filter(list -> !list.isEmpty())// Remove the Client when his list is empty
+				
+				.map(list -> list.get(0)).map(Map.Entry::getValue)// Keep one emitter for each client
+				
+				.subscribe(emitter -> emitter.onNext(message)); // Send the message for each valid emitter
 
 	}
 
