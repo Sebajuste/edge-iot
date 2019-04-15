@@ -119,10 +119,10 @@ public class ShadowDaoMongo implements ShadowDao {
 		
 		this.getReportedCB.<JsonObject>execute(future -> {
 			
-			mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, query, fields, result -> {
+			this.mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, query, fields, ar -> {
 
-				if (result.succeeded()) {
-					JsonObject json = result.result();
+				if (ar.succeeded()) {
+					JsonObject json = ar.result();
 
 					if (json != null) {
 						ShadowDaoMongo.sanitizeDate(json);
@@ -135,9 +135,9 @@ public class ShadowDaoMongo implements ShadowDao {
 						}
 					}
 
-					resultHandler.handle(Future.succeededFuture(json));
+					future.complete(json);
 				} else {
-					resultHandler.handle(Future.failedFuture(result.cause()));
+					future.fail(ar.cause());
 				}
 
 			});
