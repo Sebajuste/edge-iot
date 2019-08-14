@@ -124,7 +124,7 @@ public class ShadowVerticle extends AbstractVerticle {
 		//
 
 		JsonObject config = new JsonObject()//
-				.put("name", "Games-Matchmaking")//
+				.put("name", "IoT-Shadow")//
 				.put("endpoint", "io.edge.iot.webapi-service.yaml")//
 				.put("file", "src/main/resources/iot-api.yaml")//
 				.put("subpath", "/iot");
