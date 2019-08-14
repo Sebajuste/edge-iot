@@ -1,8 +1,6 @@
 package io.edge.iot.service.mqtt;
 
 import java.nio.charset.Charset;
-import java.security.Principal;
-import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,9 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import javax.net.ssl.SSLSession;
-import javax.security.cert.X509Certificate;
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode;
 import io.netty.handler.codec.mqtt.MqttQoS;
@@ -376,51 +371,6 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 		}
 
 		LOGGER.info("[keep alive timeout = " + endpoint.keepAliveTimeSeconds() + "]");
-
-		SSLSession sslSession = endpoint.sslSession();
-
-		if (sslSession != null) {
-
-			try {
-				
-				// SSLSessionContext context = sslSession.getSessionContext();
-				
-				
-
-				Certificate[] localCertificates = sslSession.getLocalCertificates();
-
-				for (Certificate certificate : localCertificates) {
-					System.out.println("localCert Type : " + certificate.getType()); // X.509
-
-				}
-
-				Principal localPrincipal = sslSession.getLocalPrincipal();
-
-				System.out.println("Principal : " + localPrincipal.getName());
-
-				/*
-				Certificate[] peerCertificates = sslSession.getPeerCertificates();
-				
-				System.out.println("peerCertificates count : " + peerCertificates.length);
-
-				for (Certificate certificate : localCertificates) {
-					System.out.println("peerCert Type : " + certificate.getType());
-				}
-				*/
-
-				X509Certificate[] peerCertificatesChain = sslSession.getPeerCertificateChain();
-
-				System.out.println("peerCertificateChaine count : " + peerCertificatesChain.length);
-
-				for (X509Certificate certificate : peerCertificatesChain) {
-
-				}
-
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-
-		}
 
 		this.auth(endpoint, ar -> {
 

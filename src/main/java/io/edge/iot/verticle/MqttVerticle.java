@@ -160,10 +160,7 @@ public class MqttVerticle extends AbstractVerticle {
 				
 				LOGGER.info("certificateCA: " + certificateCA);
 				
-				// Buffer caCertPEM = Buffer.buffer( certificateCA.getBinary("cert") );
-				
-				System.out.println("CA: " + certificateCA.getString("certificate") );
-				
+
 				CertificateService certificateService = CertificateService.create(vertx);
 
 				certificateService.getServerCertificate("default", certName, true, ar -> {
@@ -208,12 +205,6 @@ public class MqttVerticle extends AbstractVerticle {
 				
 				JsonObject certificateCA = arCA.result();
 				
-				// LOGGER.info("certificateCA: " + certificateCA);
-				
-				// Buffer caCertPEM = Buffer.buffer( certificateCA.getBinary("cert") );
-				
-				//System.out.println("CA: " + certificateCA.getString("certificate") );
-				
 				CertificateService certificateService = CertificateService.create(vertx);
 
 				certificateService.getServerCertificate("default", certName, true, ar -> {
@@ -221,9 +212,7 @@ public class MqttVerticle extends AbstractVerticle {
 					if (ar.succeeded()) {
 
 						JsonObject certificate = ar.result();
-
-						// LOGGER.info(certificate);
-						
+	
 						if (certificate == null && autoCreate) {
 							certificateService.createSignedCertificate("default", certName, caCertName, createCertAr -> {
 								
@@ -234,7 +223,6 @@ public class MqttVerticle extends AbstractVerticle {
 									JsonObject chainCertificate = new JsonObject()//
 											.put("private", serverCertificate.getJsonObject("keys").getString("private") )
 											.put("certificate", serverCertificate.getString("certificate") )//
-											//.put("certificate", new StringBuilder().append(certificateCA.getString("certificate")).append("\n").append(serverCertificate.getString("certificate")).toString() )//
 											.put("caCertificate", certificateCA.getString("certificate"));
 									
 									future.complete(chainCertificate);
@@ -249,8 +237,6 @@ public class MqttVerticle extends AbstractVerticle {
 							JsonObject chainCertificate = new JsonObject()//
 									.put("private", certificate.getJsonObject("keys").getString("private") )
 									.put("certificate", certificate.getString("certificate") )//
-									//.put("certificate", new StringBuilder().append(certificateCA.getString("certificate")).append("\n").append(certificate.getString("certificate")).toString() )//
-									//.put("certificate", new StringBuilder().append(certificate.getString("certificate")).append("\n").append(certificateCA.getString("certificate")).toString() )//
 									.put("caCertificate", certificateCA.getString("certificate"));
 							
 							future.complete(chainCertificate);
@@ -275,9 +261,9 @@ public class MqttVerticle extends AbstractVerticle {
 	@Override
 	public void start(Future<Void> startFuture) {
 
-		if (config().getBoolean("mqtt.ssl", false)) {
+		if (config().getBoolean("mqtt.tls.enable", false)) {
 
-			String certname = config().getString("mqtt.cert_name", "mqtt-server");
+			String certname = config().getString("mqtt.tls.cert_name", "mqtt-server");
 			
 			this.getChainCertificate(certname, "ca-mqtt-server", true, ar -> {
 
@@ -286,54 +272,28 @@ public class MqttVerticle extends AbstractVerticle {
 					
 					LOGGER.info("chain certificate : " + chainCertificate);
 					
-					// JsonObject keys = certificate.getJsonObject("keys");
-					
 					Buffer keyValue = Buffer.buffer( chainCertificate.getString("private") );
 					Buffer certValue = Buffer.buffer( chainCertificate.getString("certificate") );
 					Buffer caCertValue = Buffer.buffer( chainCertificate.getString("caCertificate") );
 					
-					// LOGGER.info("privateKey: " + keyValue.toString() );
-
 					MqttServerOptions options = new MqttServerOptions();
 					
+					ClientAuth clientAuth = ClientAuth.valueOf( config().getString("mqtt.tls.auth", "NONE") );
 					
 					options.setPort(8883)//
 						.setSsl(true)//
-						// .setClientAuth(ClientAuth.REQUIRED)//
-						
-						/*
-						.setPemTrustOptions(new PemTrustOptions()
-							//.addCertValue(caCertValue)
-							.addCertPath("./src/main/resources/ca-cert.pem") 
-							 
-						)//
-						*/
-						/*
-						.setPemKeyCertOptions(new PemKeyCertOptions()//
-							// .setKeyValue(keyValue)//
-							// .setCertValue(certValue)
-							.setKeyPath("./src/main/resources/server-key.pem")//
-							.setCertPath("./src/main/resources/server-cert.pem")//
-						)//
-						*/
-						
+						.setClientAuth( clientAuth )//
+
 						
 						.setTrustOptions(new PemTrustOptions()
 							.addCertValue(caCertValue)
-							//.addCertPath("./src/main/resources/ca-cert.pem")
 						)//
 						
 						
 						.setKeyCertOptions(new PemKeyCertOptions()//
 							.setKeyValue(keyValue)//
 							.setCertValue(certValue)//
-							//.setKeyPath("./src/main/resources/server-key.pem")//
-						    //.setCertPath("./src/main/resources/server-cert.pem")//
-						)//
-						
-						
-						
-						;
+						);
 					
 					this.startMqtt(startFuture, options);
 					
