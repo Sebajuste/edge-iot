@@ -60,6 +60,13 @@ You must use [Edge API](https://github.com/Sebajuste/edge-api) as web proxy to u
 
 **To avoid to stole message, please use Exchange object from [Edge Utils](https://github.com/Sebajuste/edge-utils) **
 
+Options :
+ 
+- `mqtt.tls.enable` _(optional)_ Default value : `false`
+- `mqtt.tls.auth` Enable client certificate authentication (`NONE`,`REQUEST`,`REQUIRED`) _(optional)_ Default value : `NONE`
+- `mqtt.tls.cert_name` The name of the certificate in Edge-Certificate repository _(optional)_ Default value : `mqtt-server`
+
+
 # Database
 
 ### Shadow storage
