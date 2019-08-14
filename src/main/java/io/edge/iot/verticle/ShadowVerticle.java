@@ -18,8 +18,6 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.serviceproxy.ServiceBinder;
 
@@ -30,8 +28,6 @@ import io.vertx.serviceproxy.ServiceBinder;
  *
  */
 public class ShadowVerticle extends AbstractVerticle {
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(ShadowVerticle.class);
 
 	/**
 	 * Nom du canal de sortie des écart entre les valeurs lues et attendues
