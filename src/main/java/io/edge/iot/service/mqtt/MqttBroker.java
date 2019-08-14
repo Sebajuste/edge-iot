@@ -1,6 +1,8 @@
 package io.edge.iot.service.mqtt;
 
 import java.nio.charset.Charset;
+import java.security.Principal;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import javax.net.ssl.SSLSession;
+import javax.security.cert.X509Certificate;
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode;
 import io.netty.handler.codec.mqtt.MqttQoS;
@@ -119,6 +124,10 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 	private void auth(MqttEndpoint endpoint, Handler<AsyncResult<User>> resultHandler) {
 
+		Future<User> future = Future.future();
+
+		future.setHandler(resultHandler);
+
 		if (authProvider != null) {
 
 			JsonObject authInfo = new JsonObject() //
@@ -128,22 +137,29 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 				authInfo.put("auth", new JsonObject().put("username", endpoint.auth().getUsername()).put("password", endpoint.auth().getPassword()));
 			}
 
+			LOGGER.info("Auth request : " + authInfo);
+
 			authProvider.authenticate(authInfo, ar -> {
 
 				if (ar.succeeded()) {
 
 					User user = ar.result();
 
-					resultHandler.handle(Future.succeededFuture(user));
+					// resultHandler.handle(Future.succeededFuture(user));
+					future.complete(user);
 
 				} else {
-					resultHandler.handle(Future.failedFuture("Bad username or password"));
+					future.fail("Bad username or password");
+					// resultHandler.handle(Future.failedFuture("Bad username or
+					// password"));
 				}
 
 			});
 
 		} else {
-			resultHandler.handle(Future.succeededFuture(null));
+			LOGGER.info("No auth Provider found");
+			future.complete();
+			// resultHandler.handle(Future.succeededFuture(null));
 		}
 
 	}
@@ -151,6 +167,10 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 	private void acceptConnection(MqttEndpoint endpoint, User user) {
 
 		final Map<String, Disposable> subscribeMap = new HashMap<>();
+
+		endpoint.closeHandler(v -> {
+			LOGGER.info("Connection closed");
+		});
 
 		/**
 		 * Disconnect
@@ -241,6 +261,8 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 			endpoint.publishComplete(messageId);
 		});
 
+		LOGGER.info("Connection accepted");
+
 		endpoint.accept(false);
 	}
 
@@ -301,48 +323,115 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 		MqttMessage message = new MqttMessage(this.registry, topic, Buffer.buffer(data));
 
-		Observable.fromIterable(this.emitterSetMap.entrySet())// Take all subscriber on this local node
-		
+		Observable.fromIterable(this.emitterSetMap.entrySet())// Take all
+																// subscriber on
+																// this local
+																// node
+
 				.filter(entry -> {
 					MqttTopicFinder.Result matchResult = MqttTopicFinder.matchUri(topic, entry.getKey());
 					return MqttTopicFinder.Result.MATCH.equals(matchResult) || MqttTopicFinder.Result.INTERMEDIATE.equals(matchResult);
 				})// Keep only eligible topics
-				
-				.flatMap(entry -> Observable.fromIterable(entry.getValue().entrySet())) // Flat all emitters for the eligible topics
-				
-				.groupBy(Map.Entry::getKey)// Regroup for each Client (to avoid send same data for the same client)
-				
-				.flatMapSingle(GroupedObservable::toList)// Make a list for each Client 
-				
-				.filter(list -> !list.isEmpty())// Remove the Client when his list is empty
-				
-				.map(list -> list.get(0)).map(Map.Entry::getValue)// Keep one emitter for each client
-				
-				.subscribe(emitter -> emitter.onNext(message)); // Send the message for each valid emitter
+
+				.flatMap(entry -> Observable.fromIterable(entry.getValue().entrySet())) // Flat
+																						// all
+																						// emitters
+																						// for
+																						// the
+																						// eligible
+																						// topics
+
+				.groupBy(Map.Entry::getKey)// Regroup for each Client (to avoid
+											// send same data for the same
+											// client)
+
+				.flatMapSingle(GroupedObservable::toList)// Make a list for each
+															// Client
+
+				.filter(list -> !list.isEmpty())// Remove the Client when his
+												// list is empty
+
+				.map(list -> list.get(0)).map(Map.Entry::getValue)// Keep one
+																	// emitter
+																	// for each
+																	// client
+
+				.subscribe(emitter -> emitter.onNext(message)); // Send the
+																// message for
+																// each valid
+																// emitter
 
 	}
 
 	@Override
 	public void handle(MqttEndpoint endpoint) {
 
-		LOGGER.info("New connection [identifier=" + endpoint.clientIdentifier() + "]");
+		LOGGER.info("MQTT client [identifier=" + endpoint.clientIdentifier() + "] request to connect, clean session = " + endpoint.isCleanSession());
 
 		if (endpoint.auth() != null) {
 			LOGGER.info("[username = " + endpoint.auth().getUsername() + ", password = " + endpoint.auth().getPassword() + "]");
 		}
 		if (endpoint.will() != null) {
-			LOGGER.info("[will topic = " + endpoint.will().getWillTopic() + " msg = " + endpoint.will().getWillMessage() + " QoS = " + endpoint.will().getWillQos() + " isRetain = " + endpoint.will().isWillRetain() + "]");
+			LOGGER.info("[Will = " + endpoint.will().toJson() + "]");
 		}
 
 		LOGGER.info("[keep alive timeout = " + endpoint.keepAliveTimeSeconds() + "]");
+
+		SSLSession sslSession = endpoint.sslSession();
+
+		if (sslSession != null) {
+
+			try {
+				
+				// SSLSessionContext context = sslSession.getSessionContext();
+				
+				
+
+				Certificate[] localCertificates = sslSession.getLocalCertificates();
+
+				for (Certificate certificate : localCertificates) {
+					System.out.println("localCert Type : " + certificate.getType()); // X.509
+
+				}
+
+				Principal localPrincipal = sslSession.getLocalPrincipal();
+
+				System.out.println("Principal : " + localPrincipal.getName());
+
+				/*
+				Certificate[] peerCertificates = sslSession.getPeerCertificates();
+				
+				System.out.println("peerCertificates count : " + peerCertificates.length);
+
+				for (Certificate certificate : localCertificates) {
+					System.out.println("peerCert Type : " + certificate.getType());
+				}
+				*/
+
+				X509Certificate[] peerCertificatesChain = sslSession.getPeerCertificateChain();
+
+				System.out.println("peerCertificateChaine count : " + peerCertificatesChain.length);
+
+				for (X509Certificate certificate : peerCertificatesChain) {
+
+				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+		}
 
 		this.auth(endpoint, ar -> {
 
 			if (ar.succeeded()) {
 
+				LOGGER.info("Auth result : " + ar.result());
+
 				this.acceptConnection(endpoint, ar.result());
 
 			} else {
+				LOGGER.info("Reject connection");
 				endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
 			}
 

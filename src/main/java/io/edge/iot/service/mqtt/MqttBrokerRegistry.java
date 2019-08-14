@@ -15,9 +15,13 @@ import io.reactivex.disposables.Disposable;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.mqtt.MqttEndpoint;
 
 public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(MqttBrokerRegistry.class);
 
 	private final Map<String, MqttBroker> brokerRegistry = new HashMap<>();
 
@@ -87,6 +91,8 @@ public class MqttBrokerRegistry implements Handler<MqttEndpoint> {
 
 	@Override
 	public void handle(MqttEndpoint endpoint) {
+		
+		LOGGER.info("New client connecting...");
 
 		this.identityService.findIdentity(endpoint.clientIdentifier(), endpoint.auth(), identityResult -> {
 

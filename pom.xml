@@ -9,7 +9,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
-		<vertx.version>3.7.0</vertx.version>
+		<vertx.version>3.7.1</vertx.version>
 		<main.verticle>io.edge.iot.verticle.LauncherVerticle</main.verticle>
 	</properties>
 
