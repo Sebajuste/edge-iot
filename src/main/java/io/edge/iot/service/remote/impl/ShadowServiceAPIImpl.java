@@ -8,8 +8,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.ext.web.api.OperationRequest;
-import io.vertx.ext.web.api.OperationResponse;
+import io.vertx.ext.web.api.service.ServiceRequest;
+import io.vertx.ext.web.api.service.ServiceResponse;
 
 public class ShadowServiceAPIImpl implements ShadowServiceAPI {
 
@@ -22,18 +22,18 @@ public class ShadowServiceAPIImpl implements ShadowServiceAPI {
 	}
 
 	@Override
-	public void getShadow(String registry, String thingName, OperationRequest context, Handler<AsyncResult<OperationResponse>> resultHandler) {
+	public void getShadow(String registry, String thingName, ServiceRequest context, Handler<AsyncResult<ServiceResponse>> resultHandler) {
 
-		shadowDao.get(registry, thingName, ar -> {
+		shadowDao.get(registry, thingName).onComplete(ar -> {
 
 			if (ar.succeeded()) {
 
-				resultHandler.handle(Future.succeededFuture(OperationResponse.completedWithJson(ar.result())));
+				resultHandler.handle(Future.succeededFuture(ServiceResponse.completedWithJson(ar.result())));
 
 			} else {
 				LOGGER.error("Cannot load shadow", ar.cause());
 
-				OperationResponse response = new OperationResponse() //
+				ServiceResponse response = new ServiceResponse() //
 						.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
 
 				resultHandler.handle(Future.succeededFuture(response));

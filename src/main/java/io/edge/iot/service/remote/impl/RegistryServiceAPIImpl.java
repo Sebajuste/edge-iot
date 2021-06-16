@@ -8,8 +8,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.api.OperationRequest;
-import io.vertx.ext.web.api.OperationResponse;
+import io.vertx.ext.web.api.service.ServiceRequest;
+import io.vertx.ext.web.api.service.ServiceResponse;
 
 public class RegistryServiceAPIImpl implements RegistryServiceAPI {
 
@@ -21,47 +21,49 @@ public class RegistryServiceAPIImpl implements RegistryServiceAPI {
 	}
 
 	@Override
-	public void getAll(String registry, OperationRequest context, Handler<AsyncResult<OperationResponse>> resultHandler) {
+	public void getAll(String registry, ServiceRequest context, Handler<AsyncResult<ServiceResponse>> resultHandler) {
 
-		this.registryDao.getAll(registry, ar -> {
+		this.registryDao.getAll(registry).onComplete(ar -> {
 
 			// OperationResponse response = new OperationResponse();
 
 			if (ar.succeeded()) {
-				OperationResponse response = OperationResponse.completedWithJson(new JsonArray(ar.result()));
+				ServiceResponse response = ServiceResponse.completedWithJson(new JsonArray(ar.result()));
 				resultHandler.handle(Future.succeededFuture(response));
 			} else {
-				OperationResponse response = new OperationResponse().setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
+				ServiceResponse response = new ServiceResponse()
+						.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
 				resultHandler.handle(Future.succeededFuture(response));
 				// OperationResponse
 				// response.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
 			}
-
-			//
 
 		});
 
 	}
 
 	@Override
-	public void findMetadata(String registry, String thingName, OperationRequest context, Handler<AsyncResult<OperationResponse>> resultHandler) {
+	public void findMetadata(String registry, String thingName, ServiceRequest context,
+			Handler<AsyncResult<ServiceResponse>> resultHandler) {
 
-		this.registryDao.findByName(registry, thingName, ar -> {
+		this.registryDao.findByName(registry, thingName).onComplete(ar -> {
 
 			if (ar.succeeded()) {
 
 				JsonObject metadata = ar.result();
 
 				if (metadata != null) {
-					OperationResponse response = OperationResponse.completedWithJson(metadata);
+					ServiceResponse response = ServiceResponse.completedWithJson(metadata);
 					resultHandler.handle(Future.succeededFuture(response));
 				} else {
-					OperationResponse response = new OperationResponse().setStatusCode(HttpResponseStatus.NO_CONTENT.code());
+					ServiceResponse response = new ServiceResponse()
+							.setStatusCode(HttpResponseStatus.NO_CONTENT.code());
 					resultHandler.handle(Future.succeededFuture(response));
 				}
 
 			} else {
-				OperationResponse response = new OperationResponse().setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
+				ServiceResponse response = new ServiceResponse()
+						.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
 				resultHandler.handle(Future.succeededFuture(response));
 			}
 

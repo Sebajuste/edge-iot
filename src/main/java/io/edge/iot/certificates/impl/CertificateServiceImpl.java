@@ -5,9 +5,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 import io.edge.iot.certificates.CertificateService;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
@@ -26,8 +25,10 @@ public class CertificateServiceImpl implements CertificateService {
 	}
 
 	@Override
-	public void getServerCertificate(String registry, String certName, boolean loadKeys, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getServerCertificate(String registry, String certName, boolean loadKeys) {
 
+		Promise<JsonObject> promise = Promise.promise();
+		
 		DeliveryOptions options = new DeliveryOptions()//
 				.addHeader("action", "findCertificate");
 
@@ -36,25 +37,25 @@ public class CertificateServiceImpl implements CertificateService {
 				.put("name", certName)//
 				.put("loadKeys", loadKeys);
 
-		this.eventBus.<JsonObject> send(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
+		this.eventBus.<JsonObject> request(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
 
 			if (ar.succeeded()) {
-
 				Message<JsonObject> m = ar.result();
-
-				resultHandler.handle(Future.succeededFuture(m.body()));
-
+				promise.complete(m.body());
 			} else {
-				resultHandler.handle(Future.failedFuture(ar.cause()));
+				promise.fail(ar.cause());
 			}
 
 		});
 
+		return promise.future();
 	}
 
 	@Override
-	public void createCertificate(String registry, String certName, boolean cA, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> createCertificate(String registry, String certName, boolean CA) {
 
+		Promise<JsonObject> promise = Promise.promise();
+		
 		Instant notAfter = LocalDateTime.of(2020, 06, 01, 0, 0).toInstant(ZoneOffset.UTC);
 		
 		DeliveryOptions options = new DeliveryOptions()//
@@ -67,9 +68,9 @@ public class CertificateServiceImpl implements CertificateService {
 		;
 		
 		JsonObject certOptions = new JsonObject()//
-				.put("ca", cA)//
+				.put("ca", CA)//
 				.put("notAfter", notAfter)//
-				.put("mutualAuthentication", !cA)//
+				.put("mutualAuthentication", !CA)//
 				;
 
 		JsonObject message = new JsonObject()//
@@ -80,28 +81,26 @@ public class CertificateServiceImpl implements CertificateService {
 				.put("claims", claims)//
 				.put("options", certOptions);
 
-		this.eventBus.<JsonObject> send(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
+		this.eventBus.<JsonObject> request(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
 
 			if (ar.succeeded()) {
 
 				Message<JsonObject> m = ar.result();
 
-				resultHandler.handle(Future.succeededFuture(m.body()));
-
+				promise.complete(m.body());
 			} else {
-				resultHandler.handle(Future.failedFuture(ar.cause()));
+				promise.fail(ar.cause());
 			}
 
 		});
 
+		return promise.future();
 	}
 
 	@Override
-	public void createSignedCertificate(String registry, String certName, String caCertName, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> createSignedCertificate(String registry, String certName, String caCertName) {
 
-		Future<JsonObject> future = Future.future();
-
-		future.setHandler(resultHandler);
+		Promise<JsonObject> promise = Promise.promise();
 
 		Instant notAfter = LocalDateTime.of(2020, 06, 01, 0, 0).toInstant(ZoneOffset.UTC);
 		
@@ -130,20 +129,21 @@ public class CertificateServiceImpl implements CertificateService {
 				.put("options", certOptions)//
 				;
 
-		this.eventBus.<JsonObject> send(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
+		this.eventBus.<JsonObject> request(CERTIFICATE_SERVICE_ADDRESS, message, options, ar -> {
 
 			if (ar.succeeded()) {
 
 				Message<JsonObject> m = ar.result();
 
-				future.complete(m.body());
+				promise.complete(m.body());
 
 			} else {
-				future.fail(ar.cause());
+				promise.fail(ar.cause());
 			}
 
 		});
 
+		return promise.future();
 	}
 
 }

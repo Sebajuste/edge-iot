@@ -13,6 +13,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.http.ClientAuth;
@@ -65,8 +66,10 @@ public class MqttVerticle extends AbstractVerticle {
 
 	}
 
-	private void startMqtt(Future<Void> startFuture, MqttServerOptions options) {
+	private Future<Void> startMqtt(MqttServerOptions options) {
 
+		Promise<Void> promise = Promise.promise();
+		
 		MqttServer mqttServer = MqttServer.create(vertx, options);
 
 		brokerRegistry = MqttBrokerRegistry.create(vertx);
@@ -105,132 +108,92 @@ public class MqttVerticle extends AbstractVerticle {
 
 				LOGGER.info("Mqtt Server started on port " + listenResult.result().actualPort());
 
-				startFuture.complete();
+				promise.complete();
 				
 			} else {
-				startFuture.fail(listenResult.cause());
+				promise.fail(listenResult.cause());
 			}
 
 		});
+		
+		return promise.future();
 	}
 
-	public void getCertificateCA(String certName, boolean autoCreate, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getCertificateCA(String certName, boolean autoCreate) {
 		
-		Future<JsonObject> resultFuture = Future.future();
-
 		CertificateService certificateService = CertificateService.create(vertx);
-
-		certificateService.getServerCertificate("default", certName, false, ar -> {
-
-			if (ar.succeeded()) {
-
-				JsonObject certificate = ar.result();
-
-				LOGGER.info(certificate);
-				
-				if (certificate == null && autoCreate) {
-					certificateService.createCertificate("default", certName, true, resultFuture);
-				} else {
-					resultFuture.complete(certificate);
-				}
-
+		
+		return certificateService.getServerCertificate("default", certName, false)//
+		.flatMap(certificate -> {
+			
+			if (certificate == null && autoCreate) {
+				return certificateService.createCertificate("default", certName, true);
 			} else {
-				LOGGER.error("Cannot find CA certificate", ar.cause());
-				resultFuture.fail(ar.cause());
+				return Future.succeededFuture(certificate);
 			}
-
+			
 		});
+		
 
-		resultFuture.setHandler(resultHandler);
 		
 	}
 	
 	@Deprecated
-	public void getCertificate(String certName, String caCertName, boolean autoCreate, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getCertificate(String certName, String caCertName, boolean autoCreate) {
 
-		Future<JsonObject> future = Future.future();
 		
-		future.setHandler(resultHandler);
-		
-		this.getCertificateCA(caCertName, autoCreate, arCA -> {
+		return this.getCertificateCA(caCertName, autoCreate)//
+				.flatMap( certificateCA -> {
 			
-			if( arCA.succeeded()) {
-				
-				JsonObject certificateCA = arCA.result();
-				
+
 				LOGGER.info("certificateCA: " + certificateCA);
 				
-
 				CertificateService certificateService = CertificateService.create(vertx);
 
-				certificateService.getServerCertificate("default", certName, true, ar -> {
-
-					if (ar.succeeded()) {
-
-						JsonObject certificate = ar.result();
+				return certificateService.getServerCertificate("default", certName, true).flatMap(certificate -> {
 
 						LOGGER.info(certificate);
 						
 						if (certificate == null && autoCreate) {
-							certificateService.createSignedCertificate("default", certName, caCertName, future);
+							return certificateService.createSignedCertificate("default", certName, caCertName);
 						} else {
-							future.complete(certificate);
+							return Future.succeededFuture(certificate);
 						}
 
-					} else {
-						LOGGER.error("Error to get certificate " + certName, ar.cause());
-						future.fail(ar.cause());
-					}
 
 				});
 				
-			} else {
-				LOGGER.error("Cannot find CA certificate", arCA.cause());
-				future.fail(arCA.cause());
-			}
-			
+
 		});
 
 	}
 	
-	public void getChainCertificate(String certName, String caCertName, boolean autoCreate, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getChainCertificate(String certName, String caCertName, boolean autoCreate) {
 		
-		Future<JsonObject> future = Future.future();
-		
-		future.setHandler(resultHandler);
-		
-		this.getCertificateCA(caCertName, autoCreate, arCA -> {
+		return this.getCertificateCA(caCertName, autoCreate)//
+			.flatMap( certificateCA -> {
 			
-			if( arCA.succeeded()) {
-				
-				JsonObject certificateCA = arCA.result();
 				
 				CertificateService certificateService = CertificateService.create(vertx);
 
-				certificateService.getServerCertificate("default", certName, true, ar -> {
+				return certificateService.getServerCertificate("default", certName, true)//
+					.flatMap( certificate -> {
 
-					if (ar.succeeded()) {
-
-						JsonObject certificate = ar.result();
 	
 						if (certificate == null && autoCreate) {
-							certificateService.createSignedCertificate("default", certName, caCertName, createCertAr -> {
+							return certificateService.createSignedCertificate("default", certName, caCertName)//
+								.map(serverCertificate -> {
 								
-								if( createCertAr.succeeded() ) {
-									
-									JsonObject serverCertificate = createCertAr.result();
-									
+
 									JsonObject chainCertificate = new JsonObject()//
 											.put("private", serverCertificate.getJsonObject("keys").getString("private") )
 											.put("certificate", serverCertificate.getString("certificate") )//
 											.put("caCertificate", certificateCA.getString("certificate"));
 									
-									future.complete(chainCertificate);
+									// future.complete(chainCertificate);
 									
-								} else {
-									future.fail(createCertAr.cause());
-								}
-								
+									return chainCertificate;
+
 							});
 						} else {
 
@@ -239,83 +202,72 @@ public class MqttVerticle extends AbstractVerticle {
 									.put("certificate", certificate.getString("certificate") )//
 									.put("caCertificate", certificateCA.getString("certificate"));
 							
-							future.complete(chainCertificate);
+							// future.complete(chainCertificate);
+							
+							return Future.succeededFuture(chainCertificate);
 						}
-
-					} else {
-						LOGGER.error("Error to get certificate " + certName, ar.cause());
-						future.fail(ar.cause());
-					}
 
 				});
 				
-			} else {
-				LOGGER.error("Cannot find CA certificate", arCA.cause());
-				future.fail(arCA.cause());
-			}
-			
-		});
+			});
 		
 	}
 
 	@Override
-	public void start(Future<Void> startFuture) {
+	public void start(Promise<Void> startPromise) {
 
+		final MqttServerOptions options = new MqttServerOptions();
+		
+		if( config().getBoolean("mqtt.websocket", false)) {
+			options.setUseWebSocket(true);
+		}
+		
+		Handler<AsyncResult<Void>> resultHandler = ar -> {
+			
+			if( ar.succeeded()) {
+				startPromise.complete();
+			} else {
+				LOGGER.error("Cannot get certificate : " + ar.cause().getMessage());
+				startPromise.fail("Invalid certificate");
+			}
+			
+		};
+		
 		if (config().getBoolean("mqtt.tls.enable", false)) {
 
 			String certname = config().getString("mqtt.tls.cert_name", "mqtt-server");
 			
-			this.getChainCertificate(certname, "ca-mqtt-server", true, ar -> {
+			this.getChainCertificate(certname, "ca-mqtt-server", true)//
+				.flatMap( chainCertificate -> {
 
-				if (ar.succeeded()) {
-					JsonObject chainCertificate = ar.result();
-					
 					LOGGER.info("chain certificate : " + chainCertificate);
 					
 					Buffer keyValue = Buffer.buffer( chainCertificate.getString("private") );
 					Buffer certValue = Buffer.buffer( chainCertificate.getString("certificate") );
 					Buffer caCertValue = Buffer.buffer( chainCertificate.getString("caCertificate") );
 					
-					MqttServerOptions options = new MqttServerOptions();
-					
 					ClientAuth clientAuth = ClientAuth.valueOf( config().getString("mqtt.tls.auth", "NONE") );
 					
 					options.setPort(8883)//
 						.setSsl(true)//
 						.setClientAuth( clientAuth )//
-
 						
 						.setTrustOptions(new PemTrustOptions()
 							.addCertValue(caCertValue)
 						)//
-						
-						
+
 						.setKeyCertOptions(new PemKeyCertOptions()//
 							.setKeyValue(keyValue)//
 							.setCertValue(certValue)//
 						);
 					
-					this.startMqtt(startFuture, options);
-					
-				} else {
-					LOGGER.error("Cannot get certificate : " + ar.cause().getMessage());
-					startFuture.fail("Invalid certificate");
-				}
+					return this.startMqtt(options);
 
-			});
+				}).onComplete(resultHandler);
 
-			
-			;
-			/*
-			 * .setClientAuth(ClientAuth.REQUIRED)// .setTrustStoreOptions(new
-			 * JksOptions().setv)
-			 */
-
-			new JksOptions();
 
 		} else {
-			MqttServerOptions options = new MqttServerOptions();
-			this.startMqtt(startFuture, options);
+			this.startMqtt(options).onComplete(resultHandler);
 		}
 
 	}

@@ -4,9 +4,7 @@ import java.util.List;
 
 import io.edge.iot.dao.ThingRegistryDao;
 import io.vertx.circuitbreaker.CircuitBreaker;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
@@ -34,56 +32,45 @@ public class ThingRegistryDaoMongo implements ThingRegistryDao {
 	}
 
 	@Override
-	public void getAll(String registry, Handler<AsyncResult<List<JsonObject>>> resultHandler) {
+	public Future<List<JsonObject>> getAll(String registry) {
 
 		JsonObject query = new JsonObject().put("registry", registry);
-		
+
 		System.out.println("get All");
 
-		this.getAllCB.<List<JsonObject>>execute(future -> {
+		return this.getAllCB.<List<JsonObject>>execute(future -> {
 			mongoClient.find(ThingRegistryDaoMongo.REGISTRY_COLLECTION, query, future);
-		}).setHandler(ar -> {
-			
-			if( ar.succeeded()) {
-				System.out.println("ok");
-				resultHandler.handle( Future.succeededFuture(ar.result()) );
-			} else {
-				System.err.println("error");
-				resultHandler.handle(Future.failedFuture(ar.cause()));
-			}
-			
 		});
 
 	}
 
 	@Override
-	public void findByName(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> findByName(String registry, String thingName) {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
-		
+
 		JsonObject fields = new JsonObject().put("metadata", true);
 
-		this.findByNameCB.<JsonObject>execute(future -> {
+		return this.findByNameCB.<JsonObject>execute(future -> {
 			mongoClient.findOne(ThingRegistryDaoMongo.REGISTRY_COLLECTION, query, fields, future);
-		}).setHandler(resultHandler);
+		});
 
 	}
 
 	@Override
-	public void addOrUpdateThing(String registry, String thingName, JsonObject metadata,
-			Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> addOrUpdateThing(String registry, String thingName, JsonObject metadata) {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
 		UpdateOptions options = new UpdateOptions();
 		options.setUpsert(true);
-		
+
 		JsonObject thingItem = new JsonObject()//
 				// .put("registry", registry)//
 				// .put("thingName", thingName)//
 				.put("metadata", metadata);
 
-		this.addOrUpdateThingCB.<Boolean>execute(future -> {
+		return this.addOrUpdateThingCB.<Boolean>execute(future -> {
 			mongoClient.updateCollectionWithOptions(ThingRegistryDaoMongo.REGISTRY_COLLECTION, query,
 					new JsonObject().put("$set", thingItem), options, ar -> {
 
@@ -94,7 +81,7 @@ public class ThingRegistryDaoMongo implements ThingRegistryDao {
 						}
 
 					});
-		}).setHandler(resultHandler);
+		});
 
 	}
 

@@ -9,9 +9,7 @@ import java.util.List;
 import io.edge.iot.dao.ShadowDao;
 import io.vertx.circuitbreaker.CircuitBreaker;
 import io.vertx.circuitbreaker.CircuitBreakerOptions;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
@@ -27,9 +25,17 @@ public class ShadowDaoMongo implements ShadowDao {
 	
 	private final CircuitBreaker getReportedCB;
 	
+	private final CircuitBreaker getDesiredCB;
+	
 	private final CircuitBreaker saveReportedCB;
 	
 	private final CircuitBreaker saveDesiredCB;
+	
+	private final CircuitBreaker deleteReportedCB;
+	
+	private final CircuitBreaker deleteDesiredCB;
+	
+	private final CircuitBreaker removeCB;
 
 	public ShadowDaoMongo(final Vertx vertx, final MongoClient mongoClient) {
 		super();
@@ -45,9 +51,17 @@ public class ShadowDaoMongo implements ShadowDao {
 		
 		this.getReportedCB = CircuitBreaker.create("edge.iot.shadow-dao.getReported", vertx, cbOptions);
 		
+		this.getDesiredCB = CircuitBreaker.create("edge.iot.shadow-dao.getDesired", vertx, cbOptions);
+		
 		this.saveReportedCB = CircuitBreaker.create("edge.iot.shadow-dao.saveReported", vertx, cbOptions);
 		
 		this.saveDesiredCB = CircuitBreaker.create("edge.iot.shadow-dao.saveDesired", vertx, cbOptions);
+		
+		this.deleteReportedCB = CircuitBreaker.create("edge.iot.shadow-dao.deleteReported", vertx, cbOptions);
+		
+		this.deleteDesiredCB = CircuitBreaker.create("edge.iot.shadow-dao.deleteDesired", vertx, cbOptions);
+		
+		this.removeCB = CircuitBreaker.create("edge.iot.shadow-dao.remove", vertx, cbOptions);
 
 	}
 
@@ -89,35 +103,35 @@ public class ShadowDaoMongo implements ShadowDao {
 	}
 
 	@Override
-	public void get(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> get(String registry, String thingName) {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
-		this.getShadowCB.<JsonObject> execute(future -> {
+		return this.getShadowCB.<JsonObject> execute(promise -> {
 
 			mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, query, null, result -> {
 
 				if (result.succeeded()) {
 					JsonObject json = result.result();
-					future.complete(json != null ? ShadowDaoMongo.sanitizeDate(json) : new JsonObject());
+					promise.complete(json != null ? ShadowDaoMongo.sanitizeDate(json) : new JsonObject());
 				} else {
-					future.fail(result.cause());
+					promise.fail(result.cause());
 				}
 
 			});
 
-		}).setHandler(resultHandler);
+		});
 
 	}
 
 	@Override
-	public void getReported(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getReported(String registry, String thingName) {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 		
 		JsonObject fields = new JsonObject().put("state.reported", 1);
 		
-		this.getReportedCB.<JsonObject>execute(future -> {
+		return this.getReportedCB.<JsonObject>execute(promise -> {
 			
 			this.mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, query, fields, ar -> {
 
@@ -135,57 +149,60 @@ public class ShadowDaoMongo implements ShadowDao {
 						}
 					}
 
-					future.complete(json);
+					promise.complete(json);
 				} else {
-					future.fail(ar.cause());
+					promise.fail(ar.cause());
 				}
 
 			});
 			
-		}).setHandler(resultHandler);
+		});
 		
 		
 	}
 
 	@Override
-	public void getDesired(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
+	public Future<JsonObject> getDesired(String registry, String thingName) {
 
-		mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, new JsonObject().put("registry", registry).put("thingName", thingName), new JsonObject().put("state.desired", 1), result -> {
-
-			if (result.succeeded()) {
-				JsonObject json = result.result();
-
-				if (json != null) {
-
-					ShadowDaoMongo.sanitizeDate(json);
-
-					if (json.containsKey("state")) {
-						JsonObject state = json.getJsonObject("state");
-						if (state.containsKey("desired")) {
-							json = state.getJsonObject("desired");
+		return this.getDesiredCB.<JsonObject>execute(promise -> {
+		
+			mongoClient.findOne(ShadowDaoMongo.SHADOW_COLLECTION, new JsonObject().put("registry", registry).put("thingName", thingName), new JsonObject().put("state.desired", 1), result -> {
+	
+				if (result.succeeded()) {
+					JsonObject json = result.result();
+	
+					if (json != null) {
+	
+						ShadowDaoMongo.sanitizeDate(json);
+	
+						if (json.containsKey("state")) {
+							JsonObject state = json.getJsonObject("state");
+							if (state.containsKey("desired")) {
+								json = state.getJsonObject("desired");
+							}
 						}
 					}
+	
+					promise.complete(json);
+				} else {
+					promise.fail(result.cause());
 				}
-
-				resultHandler.handle(Future.succeededFuture(json));
-			} else {
-				resultHandler.handle(Future.failedFuture(result.cause()));
-			}
-
+	
+			});
+		
 		});
 
 	}
 
 	@Override
-	public void saveReported(String registry, String thingName, final JsonObject shadow, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> saveReported(String registry, String thingName, final JsonObject shadow) {
 
 		JsonObject reported = shadow.getJsonObject("state").getJsonObject("reported");
 		
 		JsonObject metadata = shadow.getJsonObject("metadata", new JsonObject().put("reported", new JsonObject())).getJsonObject("reported", new JsonObject());
 		
 		if (reported.isEmpty()) {
-			resultHandler.handle(Future.succeededFuture(true));
-			return;
+			return Future.succeededFuture(false);
 		}
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
@@ -196,12 +213,7 @@ public class ShadowDaoMongo implements ShadowDao {
 		
 		long maxtimestamp = -1L;
 
-		// for (int i = 0; i < measures.size(); ++i) {
 		for (String name : reported.fieldNames()) {
-
-			// JsonObject measure = measures.getJsonObject(i);
-			
-			// String name = measure.getString("name");
 			
 			Object value = reported.getValue(name);
 			
@@ -233,25 +245,25 @@ public class ShadowDaoMongo implements ShadowDao {
 		options.setUpsert(true);
 		
 		
-		saveReportedCB.<Boolean>execute(future -> {
+		return saveReportedCB.<Boolean>execute(promise -> {
 			
 			mongoClient.updateCollectionWithOptions(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$set", update), options, result -> {
 
 				if (result.succeeded()) {
 
 					
-					future.complete(result.result().getDocModified() > 0);
+					promise.complete(result.result().getDocModified() > 0);
 					
 					// resultHandler.handle(Future.succeededFuture(result.result().getDocModified() > 0));
 
 				} else {
 					// resultHandler.handle(Future.failedFuture(result.cause()));
-					future.fail(result.cause());
+					promise.fail(result.cause());
 				}
 
 			});
 			
-		}).setHandler(resultHandler);
+		});
 		
 		/*
 		mongoClient.updateCollectionWithOptions(MongoShadowDao.SHADOW_COLLECTION, query, new JsonObject().put("$set", update), options, result -> {
@@ -270,15 +282,14 @@ public class ShadowDaoMongo implements ShadowDao {
 	}
 
 	@Override
-	public void saveDesired(String registry, String thingName, final JsonObject shadow, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> saveDesired(String registry, String thingName, final JsonObject shadow) {
 
 		JsonObject desired = shadow.getJsonObject("state").getJsonObject("desired");
 		
 		JsonObject metadata = shadow.getJsonObject("metadata", new JsonObject().put("desired", new JsonObject())).getJsonObject("desired", new JsonObject());
 		
 		if (desired.isEmpty()) {
-			resultHandler.handle(Future.succeededFuture(true));
-			return;
+			return Future.succeededFuture(false);
 		}
 
 		long shadowTimestamp = shadow.containsKey("timestamp") ? shadow.getLong("timestamp") : System.currentTimeMillis();
@@ -310,24 +321,24 @@ public class ShadowDaoMongo implements ShadowDao {
 		UpdateOptions options = new UpdateOptions();
 		options.setUpsert(true);
 
-		this.saveDesiredCB.<Boolean>execute(future -> {
+		return this.saveDesiredCB.<Boolean>execute(promise -> {
 			
 			mongoClient.updateCollectionWithOptions(ShadowDaoMongo.SHADOW_COLLECTION, filter, new JsonObject().put("$set", update), options, ar -> {
 
 				if (ar.succeeded()) {
-					future.complete( ar.result().getDocModified() > 0 );
+					promise.complete( ar.result().getDocModified() > 0 );
 				} else {
-					future.fail(ar.cause());
+					promise.fail(ar.cause());
 				}
 
 			});
 			
-		}).setHandler(resultHandler);
+		});
 
 	}
 
 	@Override
-	public void deleteReported(String registry, String thingName, final Iterable<String> keys, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> deleteReported(String registry, String thingName, final Iterable<String> keys) {
 
 		JsonObject unset = new JsonObject();
 
@@ -337,24 +348,25 @@ public class ShadowDaoMongo implements ShadowDao {
 		}
 		
 		if (unset.isEmpty()) {
-			resultHandler.handle(Future.succeededFuture(true));
-			return;
+			return Future.succeededFuture(false);
 		}
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
-		mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
-			if (result.succeeded()) {
-				resultHandler.handle(Future.succeededFuture(result.result().getDocModified() > 0));
-			} else {
-				resultHandler.handle(Future.failedFuture(result.cause()));
-			}
+		return this.deleteReportedCB.<Boolean>execute(promise -> {
+			mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
+				if (result.succeeded()) {
+					promise.complete(result.result().getDocModified() > 0);
+				} else {
+					promise.fail(result.cause());
+				}
+			});
 		});
 
 	}
 
 	@Override
-	public void deleteDesired(String registry, String thingName, final Iterable<String> desired, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> deleteDesired(String registry, String thingName, final Iterable<String> desired) {
 
 		JsonObject unset = new JsonObject();
 
@@ -364,28 +376,29 @@ public class ShadowDaoMongo implements ShadowDao {
 		}
 		
 		if (unset.isEmpty()) {
-			resultHandler.handle(Future.succeededFuture(true));
-			return;
+			return Future.succeededFuture(false);
 		}
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
-		mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
-			if (result.succeeded()) {
-				resultHandler.handle(Future.succeededFuture(result.result().getDocModified() > 0));
-
-				// TODO : supprimer le cache si suppression réussie
-
-			} else {
-				resultHandler.handle(Future.failedFuture(result.cause()));
-			}
-
+		return this.deleteDesiredCB.<Boolean>execute(promise -> {
+			mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
+				if (result.succeeded()) {
+					promise.complete(result.result().getDocModified() > 0);
+	
+					// TODO : supprimer le cache si suppression réussie
+	
+				} else {
+					promise.fail(result.cause());
+				}
+	
+			});
 		});
 
 	}
 
 	@Override
-	public void remove(String registry, String thingName, List<String> valueNameList, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> remove(String registry, String thingName, List<String> valueNameList) {
 
 		final JsonObject unset = new JsonObject();
 
@@ -398,29 +411,33 @@ public class ShadowDaoMongo implements ShadowDao {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
-		mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
+		return this.removeCB.<Boolean>execute(promise -> {
+			mongoClient.updateCollection(ShadowDaoMongo.SHADOW_COLLECTION, query, new JsonObject().put("$unset", unset), result -> {
+	
+				if (result.succeeded()) {
+					promise.complete(result.result().getDocModified() > 0);
+				} else {
+					promise.fail(result.cause());
+				}
 
-			if (result.succeeded()) {
-				resultHandler.handle(Future.succeededFuture(result.result().getDocModified() > 0));
-			} else {
-				resultHandler.handle(Future.failedFuture(result.cause()));
-			}
-
+			});
 		});
 
 	}
 
 	@Override
-	public void delete(String registry, String thingName, Handler<AsyncResult<Boolean>> resultHandler) {
+	public Future<Boolean> delete(String registry, String thingName) {
 
 		JsonObject query = new JsonObject().put("registry", registry).put("thingName", thingName);
 
-		mongoClient.removeDocument(ShadowDaoMongo.SHADOW_COLLECTION, query, result -> {
-			if (result.succeeded()) {
-				resultHandler.handle(Future.succeededFuture(result.result().getRemovedCount() > 0));
-			} else {
-				resultHandler.handle(Future.failedFuture(result.cause()));
-			}
+		return this.removeCB.<Boolean>execute(promise -> {
+			mongoClient.removeDocument(ShadowDaoMongo.SHADOW_COLLECTION, query, result -> {
+				if (result.succeeded()) {
+					promise.complete(result.result().getRemovedCount() > 0);
+				} else {
+					promise.fail(result.cause());
+				}
+			});
 		});
 
 	}

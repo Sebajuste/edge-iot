@@ -2,28 +2,27 @@ package io.edge.iot.dao;
 
 import java.util.List;
 
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 
 public interface ShadowDao {
 
-	void get(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler);
+	Future<JsonObject> get(String registry, String thingName);
 
-	void getReported(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler);
+	Future<JsonObject> getReported(String registry, String thingName);
 
-	void getDesired(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler);
+	Future<JsonObject> getDesired(String registry, String thingName);
 
-	void saveReported(String registry, String thingName, JsonObject shadow, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> saveReported(String registry, String thingName, JsonObject shadow);
 
-	void saveDesired(String registry, String thingName, JsonObject shadow, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> saveDesired(String registry, String thingName, JsonObject shadow);
 
-	void deleteReported(String registry, String thingName, Iterable<String> keys, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> deleteReported(String registry, String thingName, Iterable<String> keys);
 
-	void deleteDesired(String registry, String thingName, Iterable<String> desired, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> deleteDesired(String registry, String thingName, Iterable<String> desired);
 
-	void remove(String registry, String thingName, List<String> valueNameList, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> remove(String registry, String thingName, List<String> valueNameList);
 
-	void delete(String registry, String thingName, Handler<AsyncResult<Boolean>> resultHandler);
+	Future<Boolean> delete(String registry, String thingName);
 
 }

@@ -19,6 +19,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
@@ -93,7 +94,7 @@ public class ShadowServiceImpl implements ShadowService {
 	@Override
 	public void getShadow(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
 		
-		this.shadowDao.get(registry, thingName, ar -> {
+		this.shadowDao.get(registry, thingName).onComplete( ar -> {
 
 			DeliveryOptions options = new DeliveryOptions().addHeader("registry", registry).addHeader("thingName", thingName);
 
@@ -158,24 +159,22 @@ public class ShadowServiceImpl implements ShadowService {
 		 * else { deleteDesired.add(measure.getString("name")); } }
 		 */
 
-		Future<Boolean> saveFuture = Future.future();
-		shadowDao.saveDesired(registry, thingName, shadow, saveFuture);
+		Future<Boolean> saveFuture = shadowDao.saveDesired(registry, thingName, shadow);
 
-		Future<Boolean> deleteFuture = Future.future();
-		shadowDao.deleteDesired(registry, thingName, deleteDesired, deleteFuture);
+		Future<Boolean> deleteFuture = shadowDao.deleteDesired(registry, thingName, deleteDesired);
 
-		CompositeFuture.all(saveFuture, deleteFuture).map(COMPOSITE_UPDATE).setHandler(resultHandler);
+		CompositeFuture.all(saveFuture, deleteFuture).map(COMPOSITE_UPDATE).onComplete(resultHandler);
 
 	}
 
 	@Override
 	public void removeDesired(String registry, String thingName, JsonObject desiredData, Handler<AsyncResult<Boolean>> resultHandler) {
-		this.shadowDao.deleteDesired(registry, thingName, desiredData.fieldNames(), resultHandler);
+		this.shadowDao.deleteDesired(registry, thingName, desiredData.fieldNames()).onComplete(resultHandler);
 	}
 
 	@Override
 	public void getReported(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
-		this.shadowDao.getReported(registry, thingName, resultHandler);
+		this.shadowDao.getReported(registry, thingName).onComplete(resultHandler);
 	}
 
 	@Override
@@ -183,7 +182,7 @@ public class ShadowServiceImpl implements ShadowService {
 
 		List<String> keyList = keys.stream().map(v -> (String) v).collect(Collectors.toList());
 
-		this.shadowDao.deleteReported(registry, thingName, keyList, resultHandler);
+		this.shadowDao.deleteReported(registry, thingName, keyList).onComplete(resultHandler);
 	}
 
 	@Override
@@ -212,13 +211,11 @@ public class ShadowServiceImpl implements ShadowService {
 			}
 		}
 
-		Future<Boolean> saveFuture = Future.future();
-		shadowDao.saveReported(registry, thingName, shadow, saveFuture);
+		Future<Boolean> saveFuture = shadowDao.saveReported(registry, thingName, shadow);
 
-		Future<Boolean> deleteFuture = Future.future();
-		shadowDao.deleteReported(registry, thingName, deleteReported, deleteFuture);
+		Future<Boolean> deleteFuture = shadowDao.deleteReported(registry, thingName, deleteReported);
 
-		CompositeFuture.all(saveFuture, deleteFuture).map(COMPOSITE_UPDATE).setHandler(resultHandler);
+		CompositeFuture.all(saveFuture, deleteFuture).map(COMPOSITE_UPDATE).onComplete(resultHandler);
 	}
 
 	@Override
@@ -337,13 +334,13 @@ public class ShadowServiceImpl implements ShadowService {
 		 * Update Shadow
 		 */
 
-		Future<Boolean> removeDesiredFuture = Future.future();
-		this.removeDesired(registry, thingName, reported, removeDesiredFuture);
+		Promise<Boolean> removeDesiredPromise = Promise.promise();
+		this.removeDesired(registry, thingName, reported, removeDesiredPromise);
 
-		Future<Boolean> updateReportedFuture = Future.future();
-		this.updateReported(registry, thingName, shadow, updateReportedFuture);
+		Promise<Boolean> updateReportedPromise = Promise.promise();
+		this.updateReported(registry, thingName, shadow, updateReportedPromise);
 
-		CompositeFuture.all(removeDesiredFuture, updateReportedFuture).setHandler(compositeFuture -> {
+		CompositeFuture.all(removeDesiredPromise.future(), updateReportedPromise.future()).onComplete(compositeFuture -> {
 
 			if (compositeFuture.succeeded()) {
 				options.addHeader("action", "accepted");

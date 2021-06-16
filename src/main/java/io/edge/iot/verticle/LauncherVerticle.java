@@ -5,16 +5,15 @@ import java.util.List;
 
 import io.vertx.config.ConfigRetriever;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 
 public class LauncherVerticle extends AbstractVerticle {
 
-	private void deployVerticles(JsonObject config, Handler<AsyncResult<Void>> handlerResult) {
+	private Future<Void> deployVerticles(JsonObject config) {
 
 		@SuppressWarnings("rawtypes")
 		List<Future> deployFutureList = new ArrayList<>();
@@ -27,10 +26,11 @@ public class LauncherVerticle extends AbstractVerticle {
 			DeploymentOptions measuresDeployOptions = new DeploymentOptions();
 			measuresDeployOptions.setConfig(config);
 
-			Future<String> measuresDeployFuture = Future.future();
-			this.vertx.deployVerticle(TimeSeriesVerticle.class.getName(), measuresDeployOptions, measuresDeployFuture);
+			Promise<String> measuresDeployPromise = Promise.promise();
+			
+			this.vertx.deployVerticle(TimeSeriesVerticle.class.getName(), measuresDeployOptions, measuresDeployPromise);
 
-			deployFutureList.add(measuresDeployFuture);
+			deployFutureList.add(measuresDeployPromise.future());
 		}
 
 		/**
@@ -41,10 +41,10 @@ public class LauncherVerticle extends AbstractVerticle {
 			DeploymentOptions shadowDeployOptions = new DeploymentOptions();
 			shadowDeployOptions.setConfig(config);
 
-			Future<String> shadowDeployFuture = Future.future();
-			this.vertx.deployVerticle(ShadowVerticle.class.getName(), shadowDeployOptions, shadowDeployFuture);
+			Promise<String> shadowDeployPromise = Promise.promise();
+			this.vertx.deployVerticle(ShadowVerticle.class.getName(), shadowDeployOptions, shadowDeployPromise);
 
-			deployFutureList.add(shadowDeployFuture);
+			deployFutureList.add(shadowDeployPromise.future());
 		}
 
 		/**
@@ -58,45 +58,31 @@ public class LauncherVerticle extends AbstractVerticle {
 			// mqttOptions.setInstances(Runtime.getRuntime().availableProcessors());
 			mqttOptions.setConfig(config);
 
-			Future<String> mqttDeployFuture = Future.future();
-			this.vertx.deployVerticle(MqttVerticle.class.getName(), mqttOptions, mqttDeployFuture);
+			Promise<String> mqttDeployPromise = Promise.promise();
+			this.vertx.deployVerticle(MqttVerticle.class.getName(), mqttOptions, mqttDeployPromise);
 
-			deployFutureList.add(mqttDeployFuture);
+			deployFutureList.add(mqttDeployPromise.future());
 		}
 
 		/**
 		 * Deployment Result
 		 */
 
-		CompositeFuture.all(deployFutureList).setHandler(deployResult -> {
-			if (deployResult.succeeded()) {
-				handlerResult.handle(Future.succeededFuture());
-			} else {
-				handlerResult.handle(Future.failedFuture(deployResult.cause()));
-			}
-		});
+		return CompositeFuture.all(deployFutureList).map(compositeFuture -> null );
 
 	}
 
 	@Override
-	public void start(Future<Void> startFuture) {
+	public void start(Promise<Void> startPromise) {
 
 		ConfigRetriever.create(vertx).getConfig(ar -> {
 
 			if (ar.succeeded()) {
 
-				this.deployVerticles(ar.result(), deployResult -> {
-
-					if (deployResult.succeeded()) {
-						startFuture.complete();
-					} else {
-						startFuture.fail(deployResult.cause());
-					}
-
-				});
+				this.deployVerticles(ar.result()).onComplete(startPromise);
 
 			} else {
-				startFuture.fail(ar.cause());
+				startPromise.fail(ar.cause());
 
 			}
 
