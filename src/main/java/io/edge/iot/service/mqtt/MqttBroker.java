@@ -19,6 +19,7 @@ import io.reactivex.observables.GroupedObservable;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.DeliveryOptions;
@@ -117,11 +118,9 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 		});
 	}
 
-	private void auth(MqttEndpoint endpoint, Handler<AsyncResult<User>> resultHandler) {
+	private Future<User> auth(MqttEndpoint endpoint) {
 
-		Future<User> future = Future.future();
-
-		future.setHandler(resultHandler);
+		Promise<User> promise = Promise.promise();
 
 		if (authProvider != null) {
 
@@ -141,10 +140,10 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 					User user = ar.result();
 
 					// resultHandler.handle(Future.succeededFuture(user));
-					future.complete(user);
+					promise.complete(user);
 
 				} else {
-					future.fail("Bad username or password");
+					promise.fail("Bad username or password");
 					// resultHandler.handle(Future.failedFuture("Bad username or
 					// password"));
 				}
@@ -153,10 +152,11 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 		} else {
 			LOGGER.info("No auth Provider found");
-			future.complete();
+			promise.complete();
 			// resultHandler.handle(Future.succeededFuture(null));
 		}
 
+		return promise.future();
 	}
 
 	private void acceptConnection(MqttEndpoint endpoint, User user) {
@@ -372,7 +372,7 @@ public class MqttBroker implements Handler<MqttEndpoint> {
 
 		LOGGER.info("[keep alive timeout = " + endpoint.keepAliveTimeSeconds() + "]");
 
-		this.auth(endpoint, ar -> {
+		this.auth(endpoint).onComplete(ar -> {
 
 			if (ar.succeeded()) {
 

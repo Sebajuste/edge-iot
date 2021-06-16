@@ -130,15 +130,15 @@ public class TimeSeriesVerticle extends AbstractVerticle {
 
 		.subscribe(batch -> {
 			
-			saveBatchCB.execute(future -> {
-				influxDB.write(batch, ar -> {
+			saveBatchCB.execute(promise -> {
+				influxDB.write(batch).onComplete(ar -> {
 					if( ar.succeeded()) {
-						future.complete();
+						promise.complete();
 					} else {
-						future.fail(ar.cause());
+						promise.fail(ar.cause());
 					}
 				});
-			}).setHandler(ar -> {
+			}).onComplete(ar -> {
 				
 			});
 	

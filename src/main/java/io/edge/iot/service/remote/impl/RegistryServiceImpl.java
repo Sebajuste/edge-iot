@@ -20,21 +20,21 @@ public class RegistryServiceImpl implements RegistryService {
 	@Override
 	public void createThing(String registry, String thingName, JsonObject metadata, Handler<AsyncResult<Boolean>> resultHandler) {
 
-		this.registryDao.addOrUpdateThing(registry, thingName, metadata, resultHandler);
+		this.registryDao.addOrUpdateThing(registry, thingName, metadata).onComplete(resultHandler);
 
 	}
 
 	@Override
 	public void getAll(String registry, Handler<AsyncResult<List<JsonObject>>> resultHandler) {
 		
-		this.registryDao.getAll(registry, resultHandler);
+		this.registryDao.getAll(registry).onComplete(resultHandler);
 		
 	}
 
 	@Override
 	public void findMetadata(String registry, String thingName, Handler<AsyncResult<JsonObject>> resultHandler) {
 
-		this.registryDao.findByName(registry, thingName, resultHandler);
+		this.registryDao.findByName(registry, thingName).onComplete(resultHandler);
 
 	}
 

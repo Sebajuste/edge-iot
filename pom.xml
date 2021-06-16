@@ -8,8 +8,11 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<java.version>1.8</java.version>
-		<vertx.version>3.7.1</vertx.version>
+		<maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
+		<maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+		<java.version>11</java.version>
+		<exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+		<vertx.version>4.1.0</vertx.version>
 		<main.verticle>io.edge.iot.verticle.LauncherVerticle</main.verticle>
 	</properties>
 
@@ -20,7 +23,7 @@
 			<!-- COMPILER -->
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.1</version>
+				<version>${maven-compiler-plugin.version}</version>
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
@@ -31,7 +34,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>2.3</version>
+				<version>${maven-shade-plugin.version}</version>
 				<executions>
 					<!-- Run shade goal on package phase -->
 					<execution>
@@ -63,7 +66,7 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
-				<version>1.5.0</version>
+				<version>${exec-maven-plugin.version}</version>
 
 				<executions>
 					<execution>
@@ -74,7 +77,7 @@
 				</executions>
 
 				<configuration>
-					<mainClass>io.vertx.core.Starter</mainClass>
+					<mainClass>io.vertx.core.Launcher</mainClass>
 					<includePluginDependencies>true</includePluginDependencies>
 
 					<arguments>
